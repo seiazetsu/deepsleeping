@@ -1,74 +1,115 @@
 // src/lib/onsenLogRepository.ts
-"use client";
-
 import {
   collection,
   addDoc,
-  serverTimestamp,
+  onSnapshot,
   query,
   orderBy,
-  limit,
-  onSnapshot,
-  Timestamp,
+  doc,
+  getDoc,
+  updateDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { getDb } from "./firebase";
-import type { OnsenLog, OnsenLogInput } from "@/types/onsenLog";
+import type { OnsenLog } from "@/types/onsenLog";
 
-const COLLECTION_NAME = "onsenLogs";
-
-type OnsenLogDoc = {
+export type OnsenLogInput = {
   date: string;
   onsenName: string;
   sleepScore: number;
   memo?: string;
-  lat?: number | null;
-  lng?: number | null;
-  rating?: number | null;
-  photoUrl?: string | null;
-  createdAt?: Timestamp;
+  rating: number;
+  lat?: number;
+  lng?: number;
+  photoUrl?: string;
 };
 
-export async function addOnsenLog(input: OnsenLogInput) {
+// ★ 新規追加
+export async function addOnsenLog(
+  data: OnsenLogInput
+): Promise<string> {
   const db = getDb();
-  const ref = collection(db, COLLECTION_NAME);
+  const colRef = collection(db, "onsenLogs");
 
-  await addDoc(ref, {
-    date: input.date,
-    onsenName: input.onsenName,
-    sleepScore: Number(input.sleepScore),
-    memo: input.memo ?? "",
-    lat: input.lat ?? null,
-    lng: input.lng ?? null,
-    rating: input.rating ?? null,
-    photoUrl: input.photoUrl ?? null,
+  const payload: Partial<OnsenLogInput> & { createdAt: unknown } = {
+    ...data,
     createdAt: serverTimestamp(),
+  };
+
+  Object.keys(payload).forEach((key) => {
+    const k = key as keyof OnsenLogInput;
+    if (payload[k] === undefined) {
+      delete payload[k];
+    }
   });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const docRef = await addDoc(colRef, payload as any);
+  return docRef.id;
 }
 
+// ★ 1件取得
+export async function getOnsenLogById(
+  id: string
+): Promise<OnsenLog | null> {
+  const db = getDb();
+  const ref = doc(db, "onsenLogs", id);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) return null;
+
+  const data = snap.data() as Omit<OnsenLog, "id">;
+  return { id: snap.id, ...data };
+}
+
+// ★ 更新
+export async function updateOnsenLog(
+  id: string,
+  data: Partial<OnsenLogInput>
+): Promise<void> {
+  const db = getDb();
+  const ref = doc(db, "onsenLogs", id);
+
+  // ここは型を素直に Partial<OnsenLogInput> にする
+  const payload: Partial<OnsenLogInput> = { ...data };
+
+  // undefined を削除（Firestore が嫌うため）
+  Object.keys(payload).forEach((key) => {
+    const k = key as keyof OnsenLogInput;
+    if (payload[k] === undefined) {
+      delete payload[k];
+    }
+  });
+
+  // 型は厳しすぎるのでここだけキャストする
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await updateDoc(ref, payload as any);
+}
+
+
+// ★ 一覧購読
 export function subscribeOnsenLogs(
   callback: (logs: OnsenLog[]) => void
-) {
+): () => void {
   const db = getDb();
-  const ref = collection(db, COLLECTION_NAME);
-  const q = query(ref, orderBy("createdAt", "desc"), limit(100));
+  const colRef = collection(db, "onsenLogs");
+
+  const q = query(
+    colRef,
+    orderBy("date", "desc"),
+    orderBy("createdAt", "desc")
+  );
 
   const unsubscribe = onSnapshot(q, (snapshot) => {
-    const data: OnsenLog[] = snapshot.docs.map((doc) => {
-      const d = doc.data() as OnsenLogDoc;
+    const logs = snapshot.docs.map((docSnap) => {
+      const data = docSnap.data() as Omit<OnsenLog, "id">;
       return {
-        id: doc.id,
-        date: d.date,
-        onsenName: d.onsenName,
-        sleepScore: d.sleepScore,
-        memo: d.memo ?? "",
-        lat: d.lat ?? undefined,
-        lng: d.lng ?? undefined,
-        rating: d.rating ?? undefined,
-        photoUrl: d.photoUrl ?? undefined,
-        createdAt: d.createdAt as Timestamp,
-      };
+        id: docSnap.id,
+        ...data,
+      } as OnsenLog;
     });
-    callback(data);
+
+    callback(logs);
   });
 
   return unsubscribe;
