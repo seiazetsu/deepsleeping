@@ -190,15 +190,7 @@ export default function HomePage() {
       }}
     >
       {/* ヘッダー */}
-      <header
-        style={{
-          marginBottom: "16px",
-          display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "space-between",
-          gap: "16px",
-        }}
-      >
+      <header className="ds-header">
         {/* 左側：タイトルと説明 */}
         <div>
           <h1
@@ -223,12 +215,7 @@ export default function HomePage() {
         </div>
 
         {/* 右側：平均睡眠スコア */}
-        <div
-          style={{
-            textAlign: "right",
-            minWidth: "140px",
-          }}
-        >
+        <div className="ds-header-average">
           <div
             style={{
               fontSize: "11px",
@@ -249,6 +236,7 @@ export default function HomePage() {
           </div>
         </div>
       </header>
+
 
 
       {/* タブヘッダ */}
